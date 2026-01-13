@@ -9,6 +9,10 @@ admin_router = Router()
 def is_admin(uid):
     return uid in ADMINS
 
+@admin_router.message(Command("open_question"))
+async def open_question(message: Message):
+    await message.answer("🟢 open_question handler ishladi")
+
 
 @admin_router.message(F.text.startswith("/add_test"))
 async def add_test(message: Message):
