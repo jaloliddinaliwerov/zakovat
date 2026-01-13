@@ -16,7 +16,11 @@ def is_admin(uid):
 async def add_test(message: Message):
     if not is_admin(message.from_user.id):
         return
-    _, code, total = message.text.split()
+    parts = message.text.split()
+if len(parts) != 2:
+    await message.answer("❌ Format: /start_test TEST_KOD")
+    return
+
     async with aiosqlite.connect(DB) as db:
         await db.execute(
             "INSERT OR REPLACE INTO tests VALUES(?,?,?,?)",
