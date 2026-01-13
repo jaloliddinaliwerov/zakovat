@@ -1,30 +1,14 @@
-from aiogram.types import (
-    ReplyKeyboardMarkup, KeyboardButton,
-    InlineKeyboardMarkup, InlineKeyboardButton
-)
-from config import CHANNELS
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Admin panel
-admin_kb = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="➕ Test yaratish")],
-        [KeyboardButton(text="▶️ Testni ochish"), KeyboardButton(text="⛔ Testni yopish")],
-        [KeyboardButton(text="📊 Reyting")]
-    ],
-    resize_keyboard=True
-)
+def sub_kb(channels):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=ch, url=f"https://t.me/{ch[1:]}")]
+        for ch in channels
+    ] + [[InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub")]])
 
-# Majburiy azolik
-def subscribe_kb():
-    buttons = []
-    for ch in CHANNELS:
-        buttons.append([
-            InlineKeyboardButton(
-                text=f"📢 {ch}",
-                url=f"https://t.me/{ch.replace('@','')}"
-            )
-        ])
-    buttons.append([
-        InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub")
-    ])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+admin_kb = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="➕ Test yaratish", callback_data="create_test")],
+    [InlineKeyboardButton(text="➕ Savol qo‘shish", callback_data="add_q")],
+    [InlineKeyboardButton(text="▶️ Testni ochish", callback_data="open")],
+    [InlineKeyboardButton(text="⛔ Testni yopish", callback_data="close")],
+])
