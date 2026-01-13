@@ -28,10 +28,32 @@ async def start(message: Message, state: FSMContext):
 
 @user_router.message()
 async def answer_handler(message: Message, state: FSMContext):
+    text = message.text.strip()
+
+    # faqat "1. A" yoki "1 A" formatni qabul qilamiz
+    if "." in text:
+        parts = text.split(".", 1)
+    else:
+        parts = text.split(" ", 1)
+
+    if len(parts) != 2:
+        await message.answer("❌ Format noto‘g‘ri. Masalan: 1. A")
+        return
+
+    q_part, answer = parts
+
+    if not q_part.strip().isdigit():
+        await message.answer("❌ Savol raqami son bo‘lishi kerak")
+        return
+
+    q_number = int(q_part.strip())
+    answer = answer.strip()
+
     data = await state.get_data()
     test_code = data.get("test_code")
 
     if not test_code:
+        await message.answer("❌ Avval test kodini kiriting")
         return
 
     test = await get_test(test_code)
@@ -39,23 +61,15 @@ async def answer_handler(message: Message, state: FSMContext):
         await message.answer("⛔ Test yopiq")
         return
 
-    if "." not in message.text:
-        return
-
-    q, answer = message.text.split(".", 1)
-    if not q.strip().isdigit():
-        return
-
-    q_num = int(q.strip())
-
     await save_answer(
-        message.from_user.id,
-        test_code,
-        q_num,
-        answer.strip()
+        user_id=message.from_user.id,
+        test_code=test_code,
+        question_number=q_number,
+        answer=answer
     )
 
-    await message.answer(f"✅ {q_num}-savol javobi qabul qilindi")
+    await message.answer(f"✅ {q_number}-savol javobi qabul qilindi")
+
 
 
 @user_router.message(UserState.team)
