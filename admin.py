@@ -1,126 +1,72 @@
-from aiogram import Router, F
+from aiogram import Router
 from aiogram.types import Message
 from aiogram.filters import Command
+
 from config import ADMINS
-import aiosqlite
-from db import DB
+from keyboards import admin_kb
+from db import create_or_reset_test, set_test_active, get_rating
 
 admin_router = Router()
 
-def is_admin(uid):
+def is_admin(uid): 
     return uid in ADMINS
 
+@admin_router.message(Command("start"))
+async def admin_start(message: Message):
+    if is_admin(message.from_user.id):
+        await message.answer("👑 Admin panel", reply_markup=admin_kb)
 
+@admin_router.message(lambda m: m.text == "➕ Test yaratish")
+async def ask_create(message: Message):
+    if is_admin(message.from_user.id):
+        await message.answer("Format:\n/create TEST123 5")
 
-@admin_router.message(F.text.startswith("/add_test"))
-async def add_test(message: Message):
+@admin_router.message(Command("create"))
+async def create_test(message: Message):
     if not is_admin(message.from_user.id):
         return
     parts = message.text.split()
-if len(parts) != 2:
-    await message.answer("❌ Format: /start_test TEST_KOD")
-    return
+    if len(parts) != 3 or not parts[2].isdigit():
+        await message.answer("❌ /create TEST123 5")
+        return
+    await create_or_reset_test(parts[1], int(parts[2]))
+    await message.answer("✅ Test yaratildi (reset qilindi)")
 
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            "INSERT OR REPLACE INTO tests VALUES(?,?,?,?)",
-            (code, 0, int(total), 0)
-        )
-        await db.commit()
-    await message.answer("✅ Test yaratildi")
+@admin_router.message(lambda m: m.text == "▶️ Testni ochish")
+async def open_info(message: Message):
+    if is_admin(message.from_user.id):
+        await message.answer("Format:\n/start_test TEST123")
 
 @admin_router.message(Command("start_test"))
 async def start_test(message: Message):
     parts = message.text.split()
-    if len(parts) != 2:
-        await message.answer("❌ Format: /start_test TEST_KOD")
-        return
+    if len(parts) == 2:
+        await set_test_active(parts[1], 1)
+        await message.answer("✅ Test ochildi")
 
-    _, test_code = parts
-    await set_test_active(test_code, 1)
-    await message.answer("✅ Test ochildi. Userlar javob yuborishi mumkin.")
+@admin_router.message(lambda m: m.text == "⛔ Testni yopish")
+async def close_info(message: Message):
+    if is_admin(message.from_user.id):
+        await message.answer("Format:\n/finish_test TEST123")
 
 @admin_router.message(Command("finish_test"))
 async def finish_test(message: Message):
     parts = message.text.split()
-    if len(parts) != 2:
-        await message.answer("❌ Format: /finish_test TEST_KOD")
-        return
+    if len(parts) == 2:
+        await set_test_active(parts[1], 0)
+        await message.answer("⛔ Test yopildi")
 
-    _, test_code = parts
-    await set_test_active(test_code, 0)
-    await message.answer("⛔ Test yopildi. Javob qabul qilinmaydi.")
-
-
-@admin_router.message(F.text.startswith("/add_question"))
-async def add_question(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    try:
-        _, code, qn, ans = message.text.split()
-    except:
-        await message.answer("❌ Format: /add_question TEST 1 A1")
-        return
-
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            "INSERT INTO questions VALUES(?,?,?)",
-            (code, int(qn), ans)
-        )
-        await db.commit()
-    await message.answer("✅ Savol qo‘shildi")
-
-
-@admin_router.message(F.text.startswith("/start_test"))
-async def start_test(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    code = message.text.split()[1]
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE tests SET active=1 WHERE code=?", (code,))
-        await db.commit()
-    await message.answer("🚀 Test boshlandi\nJavoblarni 1,2,3 tartibda yuboring")
-
-
-@admin_router.message(F.text.startswith("/finish_test"))
-async def finish_test(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-    code = message.text.split()[1]
-
-    async with aiosqlite.connect(DB) as db:
-        cur = await db.execute("""
-        SELECT ua.user_id, ua.q_number, ua.answer, q.answer
-        FROM user_answers ua
-        JOIN questions q
-        ON ua.test_code=q.test_code AND ua.q_number=q.q_number
-        WHERE ua.test_code=?
-        """, (code,))
-        rows = await cur.fetchall()
-
-        for user_id, qn, u_ans, c_ans in rows:
-            if u_ans == c_ans:
-                await db.execute("""
-                UPDATE team_scores SET score=score+1
-                WHERE team=(SELECT team FROM users WHERE user_id=?)
-                """, (user_id,))
-
-        await db.execute("UPDATE tests SET active=0 WHERE code=?", (code,))
-        await db.commit()
-
-    await message.answer("🏁 Test yakunlandi\n📊 Reytingni /rating bilan ko‘ring")
-
-
-@admin_router.message(F.text == "/rating")
+@admin_router.message(lambda m: m.text == "📊 Reyting")
 async def rating(message: Message):
-    async with aiosqlite.connect(DB) as db:
-        cur = await db.execute(
-            "SELECT team, score FROM team_scores ORDER BY score DESC"
-        )
-        rows = await cur.fetchall()
+    rows = await get_rating("TEST123")
+    if not rows:
+        await message.answer("❌ Reyting yo‘q")
+        return
 
-    text = "🏆 JAMOALAR REYTINGI 🏆\n\n"
-    for i, (team, score) in enumerate(rows, 1):
-        text += f"{i}. {team} — {score} ball\n"
+    medals = ["🥇", "🥈", "🥉"]
+    text = "🏆 <b>TOP-10 REYTING</b>\n\n"
+    for i, (team, score) in enumerate(rows):
+        place = medals[i] if i < 3 else f"{i+1}."
+        text += f"{place} <b>{team}</b> — {score} ball\n"
 
-    await message.answer(text)
+    await message.answer(text, parse_mode="HTML")
