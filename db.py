@@ -13,8 +13,8 @@ async def init_db():
 
         CREATE TABLE IF NOT EXISTS tests(
             code TEXT PRIMARY KEY,
-            active INTEGER,
-            total_questions INTEGER
+            total_questions INTEGER,
+            current_question INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS questions(
