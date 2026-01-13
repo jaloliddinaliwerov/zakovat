@@ -1,4 +1,5 @@
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+
 
 def sub_kb(channels):
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -6,9 +7,14 @@ def sub_kb(channels):
         for ch in channels
     ] + [[InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_sub")]])
 
-admin_kb = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="➕ Test yaratish", callback_data="create_test")],
-    [InlineKeyboardButton(text="➕ Savol qo‘shish", callback_data="add_q")],
-    [InlineKeyboardButton(text="▶️ Testni ochish", callback_data="open")],
-    [InlineKeyboardButton(text="⛔ Testni yopish", callback_data="close")],
-])
+
+admin_kb = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="➕ Test yaratish")],
+        [KeyboardButton(text="➕ Savol qo‘shish")],
+        [KeyboardButton(text="▶️ Testni ochish")],
+        [KeyboardButton(text="⛔ Testni yopish")],
+        [KeyboardButton(text="📊 Statistika")],
+    ],
+    resize_keyboard=True
+)
