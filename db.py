@@ -6,8 +6,7 @@ async def init_db():
         await db.execute("""
         CREATE TABLE IF NOT EXISTS tests (
             code TEXT PRIMARY KEY,
-            questions INTEGER,
-            active INTEGER DEFAULT 0
+            active INTEGER
         )
         """)
 
@@ -20,69 +19,83 @@ async def init_db():
         """)
 
         await db.execute("""
+        CREATE TABLE IF NOT EXISTS questions (
+            test_code TEXT,
+            question_number INTEGER,
+            correct_answer TEXT,
+            PRIMARY KEY (test_code, question_number)
+        )
+        """)
+
+        await db.execute("""
         CREATE TABLE IF NOT EXISTS answers (
             user_id INTEGER,
             test_code TEXT,
-            question INTEGER,
-            answer TEXT
+            question_number INTEGER,
+            answer TEXT,
+            is_correct INTEGER
         )
         """)
         await db.commit()
 
-# ---------- TEST ----------
-async def create_or_reset_test(code, questions):
+
+# -------- TEST --------
+async def create_test(code: str):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("DELETE FROM tests WHERE code=?", (code,))
-        await db.execute("DELETE FROM answers WHERE test_code=?", (code,))
         await db.execute(
-            "INSERT INTO tests (code, questions, active) VALUES (?, ?, 0)",
-            (code, questions)
+            "INSERT INTO tests VALUES (?, 0)",
+            (code,)
         )
         await db.commit()
 
-async def set_test_active(code, value):
+async def set_test_active(code: str, active: int):
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute(
             "UPDATE tests SET active=? WHERE code=?",
-            (value, code)
+            (active, code)
         )
         await db.commit()
 
-async def get_test(code):
+async def get_test(code: str):
     async with aiosqlite.connect(DB_NAME) as db:
         cur = await db.execute(
-            "SELECT code, questions, active FROM tests WHERE code=?",
+            "SELECT code, active FROM tests WHERE code=?",
             (code,)
         )
         return await cur.fetchone()
 
-# ---------- USER ----------
-async def save_user(user_id, team, test_code):
+
+# -------- QUESTIONS --------
+async def add_question(test_code: str, q_number: int, correct: str):
     async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            "INSERT INTO users (user_id, team, test_code) VALUES (?, ?, ?)",
-            (user_id, team, test_code)
-        )
+        await db.execute("""
+        INSERT OR REPLACE INTO questions
+        VALUES (?, ?, ?)
+        """, (test_code, q_number, correct.lower()))
         await db.commit()
 
-async def save_answer(user_id, test_code, question, answer):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute(
-            "INSERT INTO answers VALUES (?, ?, ?, ?)",
-            (user_id, test_code, question, answer)
-        )
-        await db.commit()
-
-# ---------- RATING ----------
-async def get_rating(test_code):
+async def get_correct_answer(test_code: str, q_number: int):
     async with aiosqlite.connect(DB_NAME) as db:
         cur = await db.execute("""
-        SELECT u.team, COUNT(a.question) AS score
-        FROM answers a
-        JOIN users u ON u.user_id = a.user_id
-        WHERE a.test_code=?
-        GROUP BY u.team
-        ORDER BY score DESC
-        LIMIT 10
-        """, (test_code,))
-        return await cur.fetchall()
+        SELECT correct_answer FROM questions
+        WHERE test_code=? AND question_number=?
+        """, (test_code, q_number))
+        row = await cur.fetchone()
+        return row[0] if row else None
+
+
+# -------- USERS & ANSWERS --------
+async def save_user(user_id, team, test_code):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("""
+        INSERT INTO users VALUES (?, ?, ?)
+        """, (user_id, team, test_code))
+        await db.commit()
+
+async def save_answer(user_id, test_code, q_number, answer, is_correct):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("""
+        INSERT INTO answers VALUES (?, ?, ?, ?, ?)
+        """, (user_id, test_code, q_number, answer, is_correct))
+        await db.commit()
