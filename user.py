@@ -67,36 +67,57 @@ async def test_code_set(message: Message, state: FSMContext):
 @user_router.message(UserState.answering)
 async def answer(message: Message, state: FSMContext):
     text = message.text.strip()
+
+    # 1. Javob formati: 1. A / 1 A / 1-A
+    import re
     match = re.match(r"(\d+)\D+(.+)", text)
     if not match:
-        await message.answer("❌ Format noto‘g‘ri: 1. A")
+        await message.answer("❌ Format noto‘g‘ri. Masalan: 1. A")
         return
 
     qn = int(match.group(1))
     ans = match.group(2).strip()
+
     data = await state.get_data()
-    code = data["test_code"]
+    code = data.get("test_code")
+
+    if not code:
+        await message.answer("❌ Test kodi topilmadi")
+        return
+
+    import aiosqlite
+    from db import DB
 
     async with aiosqlite.connect(DB) as db:
+        # 2. Test holatini tekshiramiz
         cur = await db.execute(
-            "SELECT total_questions FROM tests WHERE code=?",
+            "SELECT active, current_question FROM tests WHERE code=?",
             (code,)
         )
-        total = (await cur.fetchone())[0]
+        row = await cur.fetchone()
 
-        if qn > total:
-            await message.answer("❌ Bunday savol yo‘q")
+        if not row or row[0] == 0:
+            await message.answer("⛔ Test faol emas")
             return
 
+        current_q = row[1]
+
+        # 3. Savol ochiqmi?
+        if current_q == 0:
+            await message.answer("⛔ Hozir savol yopiq")
+            return
+
+        # 4. To‘g‘ri savol raqamimi?
+        if qn != current_q:
+            await message.answer(f"❌ Hozir {current_q}-savol ochiq")
+            return
+
+        # 5. Javobni saqlaymiz
         await db.execute(
             "INSERT OR REPLACE INTO user_answers VALUES(?,?,?,?)",
             (message.from_user.id, code, qn, ans)
         )
         await db.commit()
 
-    if qn == total:
-        await message.answer(
-            "✅ Barcha javoblar qabul qilindi\nNatijalarni kuting"
-        )
-    else:
-        await message.answer(f"☑️ {qn}-savol qabul qilindi")
+    await message.answer(f"✅ {qn}-savol javobi qabul qilindi")
+        
