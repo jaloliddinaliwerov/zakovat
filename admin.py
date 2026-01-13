@@ -1,67 +1,48 @@
-from aiogram import Router
-from aiogram.types import Message
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
-
+from aiogram.fsm.context import FSMContext
 from config import ADMINS
-from db import create_test, set_test_active, add_question
+from states import AdminState
+from db import create_test, open_test, add_question
+from keyboards import admin_kb
 
 admin_router = Router()
 
-def is_admin(uid):
-    return uid in ADMINS
+@admin_router.message(Command("admin"))
+async def admin_panel(msg: Message):
+    if msg.from_user.id in ADMINS:
+        await msg.answer("👑 Admin panel", reply_markup=admin_kb)
 
+@admin_router.callback_query(F.data == "create_test")
+async def ct(cb: CallbackQuery, state: FSMContext):
+    await cb.message.answer("Test kodini yubor:")
+    await state.set_state(AdminState.create_test)
 
-@admin_router.message(Command("start"))
-async def admin_start(message: Message):
-    if is_admin(message.from_user.id):
-        await message.answer(
-            "👑 ADMIN PANEL\n\n"
-            "/create TEST123\n"
-            "/add_question TEST123 1 A\n"
-            "/start_test TEST123\n"
-            "/stop_test TEST123"
-        )
+@admin_router.message(AdminState.create_test)
+async def ct2(msg: Message, state: FSMContext):
+    await create_test(msg.text)
+    await msg.answer("✅ Test yaratildi")
+    await state.clear()
 
+@admin_router.callback_query(F.data == "add_q")
+async def aq(cb: CallbackQuery, state: FSMContext):
+    await cb.message.answer("Format:\nTEST123 1 A")
+    await state.set_state(AdminState.add_question)
 
-@admin_router.message(Command("create"))
-async def create(message: Message):
-    if not is_admin(message.from_user.id):
-        return
+@admin_router.message(AdminState.add_question)
+async def aq2(msg: Message, state: FSMContext):
+    code, q, ans = msg.text.split()
+    await add_question(code, int(q), ans)
+    await msg.answer("✅ Savol qo‘shildi")
+    await state.clear()
 
-    parts = message.text.split()
-    if len(parts) != 2:
-        await message.answer("/create TEST123")
-        return
+@admin_router.callback_query(F.data == "open")
+async def ot(cb: CallbackQuery):
+    await open_test(cb.message.text, 1)
+    await cb.message.answer("▶️ Test ochildi")
 
-    await create_test(parts[1])
-    await message.answer("✅ Test yaratildi")
-
-
-@admin_router.message(Command("add_question"))
-async def add_q(message: Message):
-    if not is_admin(message.from_user.id):
-        return
-
-    parts = message.text.split(maxsplit=3)
-    if len(parts) != 4 or not parts[2].isdigit():
-        await message.answer("/add_question TEST123 1 A")
-        return
-
-    await add_question(parts[1], int(parts[2]), parts[3])
-    await message.answer("✅ Savol va javob qo‘shildi")
-
-
-@admin_router.message(Command("start_test"))
-async def start_test(message: Message):
-    parts = message.text.split()
-    if len(parts) == 2:
-        await set_test_active(parts[1], 1)
-        await message.answer("▶️ Test ochildi")
-
-
-@admin_router.message(Command("stop_test"))
-async def stop_test(message: Message):
-    parts = message.text.split()
-    if len(parts) == 2:
-        await set_test_active(parts[1], 0)
-        await message.answer("⛔ Test yopildi")
+@admin_router.callback_query(F.data == "close")
+async def ct(cb: CallbackQuery):
+    await open_test(cb.message.text, 0)
+    await cb.message.answer("⛔ Test yopildi")
