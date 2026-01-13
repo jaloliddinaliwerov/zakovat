@@ -8,10 +8,23 @@ import re
 
 user_router = Router()
 
+from config import ADMINS
+
 @user_router.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
-    await message.answer("Jamoa nomini kiriting:")
-    await state.set_state(UserState.team)
+    if message.from_user.id in ADMINS:
+        await message.answer(
+            "👑 ADMIN PANEL\n\n"
+            "/add_test KOD N — test yaratish\n"
+            "/add_question KOD № JAVOB — savol qo‘shish\n"
+            "/start_test KOD — testni boshlash\n"
+            "/finish_test KOD — testni tugatish\n"
+            "/rating — reyting"
+        )
+        await state.clear()
+    else:
+        await message.answer("Jamoa nomini kiriting:")
+        await state.set_state(UserState.team)
 
 
 @user_router.message(UserState.team)
