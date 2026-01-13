@@ -1,71 +1,54 @@
-from aiogram import Router
-from aiogram.types import Message
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-
+from config import CHANNELS
 from states import UserState
-from db import get_test, save_user, save_answer, get_correct_answer
+from keyboards import sub_kb
+from db import save_user, test_open, save_answer, already_answered
 
 user_router = Router()
 
-
 @user_router.message(Command("start"))
-async def start(message: Message, state: FSMContext):
-    await state.clear()
-    await message.answer("👥 Jamoa nomini kiriting:")
+async def start(msg: Message, state: FSMContext):
+    await msg.answer("Avval obuna bo‘ling:", reply_markup=sub_kb(CHANNELS))
+
+@user_router.callback_query(F.data == "check_sub")
+async def check(cb: CallbackQuery, state: FSMContext):
+    await cb.message.answer("Jamoa nomini kiriting:")
     await state.set_state(UserState.team)
 
-
 @user_router.message(UserState.team)
-async def team(message: Message, state: FSMContext):
-    await state.update_data(team=message.text)
-    await message.answer("🔐 Test kodini kiriting:")
+async def team(msg: Message, state: FSMContext):
+    await save_user(msg.from_user.id, msg.text)
+    await msg.answer("Test kodini kiriting:")
     await state.set_state(UserState.test_code)
 
-
 @user_router.message(UserState.test_code)
-async def test_code(message: Message, state: FSMContext):
-    test = await get_test(message.text)
-    if not test or test[1] == 0:
-        await message.answer("⛔ Test yopiq")
+async def code(msg: Message, state: FSMContext):
+    if not await test_open(msg.text):
+        await msg.answer("❌ Test yopiq")
         return
-
-    data = await state.get_data()
-    await save_user(message.from_user.id, data["team"], message.text)
-    await state.update_data(test_code=message.text)
-
-    await message.answer(
-        "✅ Test boshlandi\n"
-        "Javob yuboring:\n"
-        "Masalan: 1. A"
-    )
-
+    await state.update_data(test=msg.text)
+    await msg.answer("✍️ Javob yuboring:\n1 A")
+    await state.clear()
 
 @user_router.message()
-async def answers(message: Message, state: FSMContext):
+async def answer(msg: Message, state: FSMContext):
+    try:
+        q, ans = msg.text.split(maxsplit=1)
+        q = int(q)
+    except:
+        return
+
     data = await state.get_data()
-    if "test_code" not in data:
+    code = data.get("test")
+    if not code:
         return
 
-    if "." not in message.text:
+    if await already_answered(msg.from_user.id, code, q):
+        await msg.answer("❌ Bu savolga javob berilgan")
         return
 
-    q, ans = message.text.split(".", 1)
-    if not q.strip().isdigit():
-        return
-
-    q_num = int(q.strip())
-    ans = ans.strip().lower()
-
-    correct = await get_correct_answer(data["test_code"], q_num)
-    is_correct = 1 if correct and ans == correct else 0
-
-    await save_answer(
-        message.from_user.id,
-        data["test_code"],
-        q_num,
-        ans,
-        is_correct
-    )
-
-    await message.answer("✅ To‘g‘ri" if is_correct else "❌ Noto‘g‘ri")
+    await save_answer(msg.from_user.id, code, q, ans)
+    await msg.answer("✅ Qabul qilindi")
