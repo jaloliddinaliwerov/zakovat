@@ -9,9 +9,21 @@ from db import save_user, test_open, save_answer, already_answered
 
 user_router = Router()
 
+from config import ADMINS
+
 @user_router.message(Command("start"))
 async def start(msg: Message, state: FSMContext):
-    await msg.answer("Avval obuna bo‘ling:", reply_markup=sub_kb(CHANNELS))
+    # Agar admin bo‘lsa — to‘g‘ridan-to‘g‘ri admin panel
+    if msg.from_user.id in ADMINS:
+        await msg.answer("👑 Admin panelga kirish uchun /admin yozing")
+        return
+
+    # Oddiy user bo‘lsa — majburiy obuna
+    await msg.answer(
+        "📢 Botdan foydalanish uchun quyidagi kanallarga obuna bo‘ling:",
+        reply_markup=sub_kb(CHANNELS)
+    )
+
 
 @user_router.callback_query(F.data == "check_sub")
 async def check(cb: CallbackQuery, state: FSMContext):
