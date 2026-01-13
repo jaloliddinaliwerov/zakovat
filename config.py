@@ -2,7 +2,7 @@ import os
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")  # Railway variables
 
-ADMINS = [6734269605]  # 👉 o‘z Telegram ID’ing (int)
+ADMINS = [6734269605,7658297748]  # 👉 o‘z Telegram ID’ing (int)
 
 DB_NAME = "database.db"
 
