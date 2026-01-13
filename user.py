@@ -26,6 +26,37 @@ async def start(message: Message, state: FSMContext):
         await message.answer("Jamoa nomini kiriting:")
         await state.set_state(UserState.team)
 
+@user_router.message()
+async def answer_handler(message: Message, state: FSMContext):
+    data = await state.get_data()
+    test_code = data.get("test_code")
+
+    if not test_code:
+        return
+
+    test = await get_test(test_code)
+    if not test or test["active"] == 0:
+        await message.answer("⛔ Test yopiq")
+        return
+
+    if "." not in message.text:
+        return
+
+    q, answer = message.text.split(".", 1)
+    if not q.strip().isdigit():
+        return
+
+    q_num = int(q.strip())
+
+    await save_answer(
+        message.from_user.id,
+        test_code,
+        q_num,
+        answer.strip()
+    )
+
+    await message.answer(f"✅ {q_num}-savol javobi qabul qilindi")
+
 
 @user_router.message(UserState.team)
 async def team_set(message: Message, state: FSMContext):
