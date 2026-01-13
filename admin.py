@@ -17,8 +17,8 @@ async def add_test(message: Message):
     _, code, total = message.text.split()
     async with aiosqlite.connect(DB) as db:
         await db.execute(
-            "INSERT OR REPLACE INTO tests VALUES(?,?,?)",
-            (code, 0, int(total))
+            "INSERT OR REPLACE INTO tests VALUES(?,?,?,?)",
+            (code, 0, int(total), 0)
         )
         await db.commit()
     await message.answer("✅ Test yaratildi")
@@ -42,6 +42,38 @@ async def add_question(message: Message):
         await db.commit()
     await message.answer("✅ Savol qo‘shildi")
 
+@admin_router.message(F.text.startswith("/open_question"))
+async def open_question(message: Message):
+    if message.from_user.id not in ADMINS:
+        return
+
+    _, code, qn = message.text.split()
+    qn = int(qn)
+
+    async with aiosqlite.connect(DB) as db:
+        await db.execute(
+            "UPDATE tests SET current_question=? WHERE code=? AND active=1",
+            (qn, code)
+        )
+        await db.commit()
+
+    await message.answer(f"📢 {qn}-savol OCHILDI\nUserlar javob yuborishi mumkin")
+
+@admin_router.message(F.text.startswith("/close_question"))
+async def close_question(message: Message):
+    if message.from_user.id not in ADMINS:
+        return
+
+    code = message.text.split()[1]
+
+    async with aiosqlite.connect(DB) as db:
+        await db.execute(
+            "UPDATE tests SET current_question=0 WHERE code=?",
+            (code,)
+        )
+        await db.commit()
+
+    await message.answer("⛔ Savol yopildi")
 
 @admin_router.message(F.text.startswith("/start_test"))
 async def start_test(message: Message):
