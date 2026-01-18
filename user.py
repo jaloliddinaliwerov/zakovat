@@ -9,10 +9,38 @@ from config import ADMIN_IDS
 
 user_router = Router()
 
+async def check_subscription(bot, user_id: int) -> bool:
+    for channel in REQUIRED_CHANNELS:
+        try:
+            member = await bot.get_chat_member(channel, user_id)
+            if member.status in ("left", "kicked"):
+                return False
+        except TelegramBadRequest:
+            return False
+    return True
+
 @user_router.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
-    await message.answer("👋 Botga xush kelibsiz!\n\nJamoa nomini kiriting:")
+    subscribed = await check_subscription(
+        message.bot,
+        message.from_user.id
+    )
+
+    if not subscribed:
+        text = "📢 Botdan foydalanish uchun quyidagi kanallarga obuna bo‘ling:\n\n"
+        for ch in REQUIRED_CHANNELS:
+            text += f"👉 {ch}\n"
+
+        text += "\n✅ Obuna bo‘lgach /start ni qayta bosing"
+        await message.answer(text)
+        return
+
+    await message.answer(
+        "👋 Botga xush kelibsiz!\n\n"
+        "🧑‍🤝‍🧑 Jamoa nomini kiriting:"
+    )
     await state.set_state(UserState.team_name)
+
 
 @user_router.message(UserState.team_name)
 async def get_team(message: Message, state: FSMContext):
