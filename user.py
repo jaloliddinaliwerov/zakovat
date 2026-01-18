@@ -1,66 +1,77 @@
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
-from aiogram.filters import Command
+from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
-from config import CHANNELS
+from datetime import datetime
+
 from states import UserState
-from keyboards import sub_kb
-from db import save_user, test_open, save_answer, already_answered
+from db import get_test, save_answer, get_team_answers
+from config import ADMIN_IDS
 
 user_router = Router()
 
-from config import ADMINS
+@user_router.message(F.text == "/start")
+async def start(message: Message, state: FSMContext):
+    await message.answer("👋 Botga xush kelibsiz!\n\nJamoa nomini kiriting:")
+    await state.set_state(UserState.team_name)
 
-@user_router.message(Command("start"))
-async def start(msg: Message, state: FSMContext):
-    # Agar admin bo‘lsa — to‘g‘ridan-to‘g‘ri admin panel
-    if msg.from_user.id in ADMINS:
-        await msg.answer("👑 Admin panelga kirish uchun /admin yozing")
-        return
-
-    # Oddiy user bo‘lsa — majburiy obuna
-    await msg.answer(
-        "📢 Botdan foydalanish uchun quyidagi kanallarga obuna bo‘ling:",
-        reply_markup=sub_kb(CHANNELS)
-    )
-
-
-@user_router.callback_query(F.data == "check_sub")
-async def check(cb: CallbackQuery, state: FSMContext):
-    await cb.message.answer("Jamoa nomini kiriting:")
-    await state.set_state(UserState.team)
-
-@user_router.message(UserState.team)
-async def team(msg: Message, state: FSMContext):
-    await save_user(msg.from_user.id, msg.text)
-    await msg.answer("Test kodini kiriting:")
+@user_router.message(UserState.team_name)
+async def get_team(message: Message, state: FSMContext):
+    await state.update_data(team=message.text)
+    await message.answer("🧪 Test kodini kiriting:")
     await state.set_state(UserState.test_code)
 
 @user_router.message(UserState.test_code)
-async def code(msg: Message, state: FSMContext):
-    if not await test_open(msg.text):
-        await msg.answer("❌ Test yopiq")
-        return
-    await state.update_data(test=msg.text)
-    await msg.answer("✍️ Javob yuboring:\n1 A")
-    await state.clear()
+async def get_test_code(message: Message, state: FSMContext):
+    test_code = message.text
+    count = get_test(test_code)
 
-@user_router.message()
-async def answer(msg: Message, state: FSMContext):
-    try:
-        q, ans = msg.text.split(maxsplit=1)
-        q = int(q)
-    except:
+    if not count:
+        await message.answer("❌ Test topilmadi")
         return
 
+    await state.update_data(
+        test=test_code,
+        total=count,
+        current=1
+    )
+
+    await message.answer("1-savolga javob yuboring:")
+    await state.set_state(UserState.answering)
+
+@user_router.message(UserState.answering)
+async def process_answers(message: Message, state: FSMContext):
     data = await state.get_data()
-    code = data.get("test")
-    if not code:
-        return
 
-    if await already_answered(msg.from_user.id, code, q):
-        await msg.answer("❌ Bu savolga javob berilgan")
-        return
+    team = data["team"]
+    test = data["test"]
+    q = data["current"]
+    total = data["total"]
 
-    await save_answer(msg.from_user.id, code, q, ans)
-    await msg.answer("✅ Qabul qilindi")
+    now = datetime.now().strftime("%H:%M:%S")
+
+    save_answer(team, test, q, message.text, now)
+
+    if q < total:
+        await state.update_data(current=q+1)
+        await message.answer(f"{q+1}-savolga javob yuboring:")
+    else:
+        answers = get_team_answers(team, test)
+
+        text = (
+            "📊 TEST NATIJASI\n\n"
+            f"🧑‍🤝‍🧑 Jamoa: {team}\n"
+            f"🧪 Test: {test}\n\n"
+        )
+
+        for qn, ans, t in answers:
+            text += (
+                f"{qn}️⃣ Savol\n"
+                f"Javob: {ans}\n"
+                f"⏰ {t}\n\n"
+            )
+
+        for admin in ADMIN_IDS:
+            await message.bot.send_message(admin, text)
+
+        await message.answer("✅ Javoblaringiz qabul qilindi")
+        await state.clear()
