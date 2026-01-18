@@ -27,6 +27,8 @@ async def check_subscription(bot, user_id: int) -> bool:
 
 @user_router.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
+    await state.clear()  # eski holatlar tozalansin
+
     subscribed = await check_subscription(
         message.bot,
         message.from_user.id
