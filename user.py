@@ -1,5 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import Message
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from datetime import datetime
 
@@ -25,9 +26,9 @@ async def check_subscription(bot, user_id: int) -> bool:
     return True
 
 
-@user_router.message(F.text == "/start")
+@user_router.message(Command("start"))
 async def start(message: Message, state: FSMContext):
-    await state.clear()  # eski holatlar tozalansin
+    await state.clear()
 
     subscribed = await check_subscription(
         message.bot,
