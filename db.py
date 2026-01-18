@@ -1,86 +1,56 @@
-import aiosqlite
+import sqlite3
 
-DB = "database.db"
+conn = sqlite3.connect("database.db")
+cursor = conn.cursor()
 
-async def init_db():
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS tests (
-            code TEXT PRIMARY KEY,
-            is_open INTEGER
-        )""")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS tests (
+    test_code TEXT PRIMARY KEY,
+    questions_count INTEGER
+)
+""")
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS questions (
-            test_code TEXT,
-            q_num INTEGER,
-            correct TEXT,
-            PRIMARY KEY (test_code, q_num)
-        )""")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS answers (
+    team_name TEXT,
+    test_code TEXT,
+    question_number INTEGER,
+    answer TEXT,
+    time TEXT
+)
+""")
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS answers (
-            user_id INTEGER,
-            test_code TEXT,
-            q_num INTEGER,
-            answer TEXT,
-            is_correct INTEGER,
-            PRIMARY KEY (user_id, test_code, q_num)
-        )""")
+conn.commit()
 
-        await db.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            team TEXT
-        )""")
-        await db.commit()
-async def create_test(code):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("INSERT OR REPLACE INTO tests VALUES (?,0)", (code,))
-        await db.commit()
 
-async def open_test(code, val):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("UPDATE tests SET is_open=? WHERE code=?", (val, code))
-        await db.commit()
+def create_test(code, count):
+    cursor.execute(
+        "INSERT OR REPLACE INTO tests VALUES (?,?)",
+        (code, count)
+    )
+    conn.commit()
 
-async def test_open(code):
-    async with aiosqlite.connect(DB) as db:
-        cur = await db.execute("SELECT is_open FROM tests WHERE code=?", (code,))
-        r = await cur.fetchone()
-        return r and r[0] == 1
 
-async def add_question(code, q, correct):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute(
-            "INSERT OR REPLACE INTO questions VALUES (?,?,?)",
-            (code, q, correct.lower())
-        )
-        await db.commit()
+def get_test(code):
+    cursor.execute(
+        "SELECT questions_count FROM tests WHERE test_code=?",
+        (code,)
+    )
+    row = cursor.fetchone()
+    return row[0] if row else None
 
-async def save_user(uid, team):
-    async with aiosqlite.connect(DB) as db:
-        await db.execute("INSERT OR REPLACE INTO users VALUES (?,?)", (uid, team))
-        await db.commit()
 
-async def already_answered(uid, code, q):
-    async with aiosqlite.connect(DB) as db:
-        cur = await db.execute(
-            "SELECT 1 FROM answers WHERE user_id=? AND test_code=? AND q_num=?",
-            (uid, code, q)
-        )
-        return await cur.fetchone() is not None
+def save_answer(team, test, q_num, answer, time):
+    cursor.execute(
+        "INSERT INTO answers VALUES (?,?,?,?,?)",
+        (team, test, q_num, answer, time)
+    )
+    conn.commit()
 
-async def save_answer(uid, code, q, ans):
-    async with aiosqlite.connect(DB) as db:
-        cur = await db.execute(
-            "SELECT correct FROM questions WHERE test_code=? AND q_num=?",
-            (code, q)
-        )
-        row = await cur.fetchone()
-        correct = row and row[0] == ans.lower()
-        await db.execute(
-            "INSERT INTO answers VALUES (?,?,?,?,?)",
-            (uid, code, q, ans, int(correct))
-        )
-        await db.commit()
+
+def get_team_answers(team, test):
+    cursor.execute(
+        "SELECT question_number, answer, time FROM answers WHERE team_name=? AND test_code=? ORDER BY question_number",
+        (team, test)
+    )
+    return cursor.fetchall()
