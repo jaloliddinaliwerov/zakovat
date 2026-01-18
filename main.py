@@ -2,6 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import BOT_TOKEN
 from admin import admin_router
@@ -13,7 +14,8 @@ async def main():
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
 
-    dp = Dispatcher()
+    dp = Dispatcher(storage=MemoryStorage())  # 🔴 MUHIM
+
     dp.include_router(admin_router)
     dp.include_router(user_router)
 
