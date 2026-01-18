@@ -10,14 +10,20 @@ from config import ADMIN_IDS
 user_router = Router()
 
 async def check_subscription(bot, user_id: int) -> bool:
+    from config import REQUIRED_CHANNELS
+
     for channel in REQUIRED_CHANNELS:
         try:
-            member = await bot.get_chat_member(channel, user_id)
-            if member.status in ("left", "kicked"):
+            member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
+            if member.status not in ("member", "administrator", "creator"):
                 return False
-        except TelegramBadRequest:
+        except Exception as e:
+            # MUHIM: har qanday xatoda FALSE qaytaradi
+            print(f"Subscription check error: {e}")
             return False
+
     return True
+
 
 @user_router.message(F.text == "/start")
 async def start(message: Message, state: FSMContext):
